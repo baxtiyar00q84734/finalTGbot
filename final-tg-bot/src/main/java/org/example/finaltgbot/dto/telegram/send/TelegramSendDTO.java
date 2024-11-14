@@ -12,8 +12,8 @@ public class TelegramSendDTO {
     private int chatId;
     private String text;
 
-    @JsonProperty("reply_markup")
-    private ReplyMarkup replyMarkup;
-    public void setReplyMarkup(ReplyKeyboardMarkupDTO replyMarkup) {
-    }
+//    @JsonProperty("reply_markup")
+//    private ReplyMarkup replyMarkup;
+//    public void setReplyMarkup(ReplyKeyboardMarkupDTO replyMarkup) {
+//    }
 }
