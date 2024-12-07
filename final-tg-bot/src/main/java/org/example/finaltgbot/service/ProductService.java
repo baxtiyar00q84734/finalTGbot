@@ -1,6 +1,7 @@
 package org.example.finaltgbot.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.finaltgbot.dto.request.ProductRequestDTO;
 import org.example.finaltgbot.dto.response.ProductResponseDTO;
 import org.example.finaltgbot.entity.Product;
 import org.example.finaltgbot.repository.ProductRepository;
@@ -16,13 +17,30 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ModelMapper modelMapper;
 
+
+
+    public List<Product> getAllAvailableProducts() {
+        return productRepository.findAll();
+    }
+
+    public Product getProductById(Long productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+    }
+
+    //CRUD
+
+    public void createProduct(ProductRequestDTO productRequestDTO) {
+        Product map = modelMapper.map(productRequestDTO, Product.class);
+        productRepository.save(map);
+    }
+
     public List<ProductResponseDTO> getAllProducts() {
         return productRepository.findAll().stream()
                 .map(product -> modelMapper.map(product, ProductResponseDTO.class))
                 .collect(Collectors.toList());
     }
-
-    public List<Product> getAllAvailableProducts() {
-        return productRepository.findAll();
+    public void deleteProduct(Long id){
+        productRepository.deleteById(id);
     }
 }

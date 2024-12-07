@@ -10,7 +10,7 @@ public class UserRequestDTO {
     private String firstName;
     private String lastName;
     private String email;
-    private String password;
+//    private String password;
     private Role role;
     private Long companyId;
     private int chatId;

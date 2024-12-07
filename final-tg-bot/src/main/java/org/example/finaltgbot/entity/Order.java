@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.example.finaltgbot.enums.OrderStatus;
 import org.example.finaltgbot.enums.OrderStep;
 
 import java.time.LocalDateTime;
@@ -33,6 +34,9 @@ public class Order {
 
     @Enumerated(EnumType.STRING)
     private OrderStep orderStep;
+
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
 
     @Column(name = "order_date")
     private LocalDateTime orderDate;
