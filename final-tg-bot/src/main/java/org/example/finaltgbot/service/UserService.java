@@ -18,11 +18,11 @@ public class UserService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
 
-    public User findByChatId(int chatId) {
+    public User findByChatId(Long chatId) {
         return userRepository.findByChatId(chatId).orElse(null);
     }
 
-    public User startRegistration(int chatId) {
+    public User startRegistration(Long chatId) {
         User newUser = new User();
         newUser.setChatId(chatId);
         newUser.setRegistrationStep(RegistrationStep.ASK_NAME);
@@ -41,7 +41,7 @@ public class UserService {
                 .toList();
     }
 
-    public User getUserByChatId(int chatId) {
+    public User getUserByChatId(Long chatId) {
         return userRepository.findByChatId(chatId).orElse(null);
     }
 
@@ -51,7 +51,7 @@ public class UserService {
     }
 
     public boolean isUserEligibleForOrder(Long chatId) {
-        User user = findByChatId(Math.toIntExact(chatId));
+        User user = findByChatId(chatId);
         if (user != null && user.getRegistrationStep() == RegistrationStep.COMPLETED) {
             return true;
         }

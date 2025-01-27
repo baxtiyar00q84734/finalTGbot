@@ -14,7 +14,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByChatId(int chatId);
 
     @Query("SELECT u FROM User u WHERE u.chatId = :chatId")
-    Optional<User> findByChatId(@Param("chatId") int chatId);
+    Optional<User> findByChatId(@Param("chatId") Long chatId);
 
 
     @Modifying

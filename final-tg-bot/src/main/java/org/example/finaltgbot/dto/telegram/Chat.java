@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Chat {
-    public int id;
+    public Long id;
     public String first_name;
     public String last_name;
     public String type;

@@ -11,7 +11,7 @@ import org.example.finaltgbot.dto.telegram.ReplyKeyboardMarkupDTO;
 public class TelegramSendDTO {
 
     @JsonProperty("chat_id")
-    private int chatId;
+    private Long chatId;
     private String text;
     private ReplyKeyboardMarkupDTO replyKeyboardMarkupDTO;
 }

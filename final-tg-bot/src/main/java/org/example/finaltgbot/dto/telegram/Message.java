@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Message {
-    public int message_id;
+    public Long message_id;
     public From from;
     public Chat chat;
     public int date;

@@ -32,7 +32,7 @@ public class TelegramBotService {
     private final OrderService orderService;
     private final ProductService productService;
 
-    private int offset = 0;
+    private Long offset = 0L;
 
     @Scheduled(fixedRate = 3000)
     public void getMessage() {
@@ -42,24 +42,24 @@ public class TelegramBotService {
 
         if (!updates.getResult().isEmpty()) {
             updates.getResult().forEach(update -> {
-                int chatId = update.getMessage().getChat().getId();
+                Long chatId = update.getMessage().getChat().getId();
                 String messageText = update.getMessage().getText();
 
                 processMessage(chatId, messageText);
 
-                offset = update.getUpdate_id() + 1;
+                offset =(update.getUpdate_id() + 1);
             });
         }
     }
 
-    public void sendMessage(int chatId, String text) {
+    public void sendMessage(Long chatId, String text) {
         TelegramSendDTO message = new TelegramSendDTO();
         message.setChatId(chatId);
         message.setText(text);
         telegramConfig.sendSimpleMessage(chatId, text);
     }
 
-    public void processMessage(int chatId, String message) {
+    public void processMessage(Long chatId, String message) {
         User user = userService.findByChatId(chatId);
 
 
@@ -93,7 +93,7 @@ public class TelegramBotService {
     }
 
 
-    private void handleRegistrationSteps(int chatId, String message, User user) {
+    private void handleRegistrationSteps(Long chatId, String message, User user) {
         switch (user.getRegistrationStep()) {
             case ASK_NAME:
                 user.setFirstName(message);
@@ -127,7 +127,7 @@ public class TelegramBotService {
         }
     }
 
-    private void handleOrder(int chatId, String message, User user) {
+    private void handleOrder(Long chatId, String message, User user) {
         Order currentOrder = orderService.getCurrentOrderForUser(user);
 
         switch (user.getOrderStep()) {
@@ -189,7 +189,7 @@ public class TelegramBotService {
         }
     }
 
-    public void handleDeleteOrderCommand(int chatId) {
+    public void handleDeleteOrderCommand(Long chatId) {
         User user = userService.getUserByChatId(chatId);
 
         Optional<Order> optionalOrder = orderService.getCurrentOrderForUsers(user);

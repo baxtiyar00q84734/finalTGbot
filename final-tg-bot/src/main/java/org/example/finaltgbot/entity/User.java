@@ -39,7 +39,7 @@ public class User {
     @JoinColumn(name = "company_id")
     private Company company;
 
-    private int chatId;
+    private Long chatId;
 
     @Enumerated(EnumType.STRING)
     private RegistrationStep registrationStep;

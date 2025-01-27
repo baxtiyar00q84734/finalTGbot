@@ -12,11 +12,11 @@ public interface TelegramConfig {
 
 
     @GetMapping("/getUpdates?offset={value}")
-    TelegramRoot getUpdates(@PathVariable Integer value);
+    TelegramRoot getUpdates(@PathVariable Long value);
 
 
     @PostMapping("/sendMessage")
-    String sendSimpleMessage(@RequestParam("chat_id") int chatId, @RequestParam("text") String message);
+    String sendSimpleMessage(@RequestParam("chat_id") Long chatId, @RequestParam("text") String message);
 
     @PostMapping("/sendMessage")
     void sendStructuredMessage(@RequestBody SendMessageDTO sendMessageDTO);
