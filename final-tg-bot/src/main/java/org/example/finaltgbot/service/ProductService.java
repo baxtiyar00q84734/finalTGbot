@@ -14,10 +14,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProductService {
+    private static final int MAX_DEPTH = 10;
     private final ProductRepository productRepository;
     private final ModelMapper modelMapper;
+    private int currentDepth = 0;
 
-
+    //CRUD
 
     public List<Product> getAllAvailableProducts() {
         return productRepository.findAll();
@@ -28,7 +30,7 @@ public class ProductService {
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
     }
 
-    //CRUD
+
 
     public void createProduct(ProductRequestDTO productRequestDTO) {
         Product map = modelMapper.map(productRequestDTO, Product.class);
@@ -36,11 +38,28 @@ public class ProductService {
     }
 
     public List<ProductResponseDTO> getAllProducts() {
-        return productRepository.findAll().stream()
-                .map(product -> modelMapper.map(product, ProductResponseDTO.class))
-                .collect(Collectors.toList());
+        if (currentDepth > MAX_DEPTH) {
+            throw new IllegalStateException("Exceeded maximum depth for recursion.");
+        }
+
+        try {
+            currentDepth++;
+            List<Product> products = productRepository.findAll();
+
+            return products.stream()
+                    .map(product -> modelMapper.map(product, ProductResponseDTO.class))
+                    .collect(Collectors.toList());
+        } finally {
+            currentDepth--;
+        }
     }
-    public void deleteProduct(Long id){
+
+
+    public void deleteProduct(Long id) {
         productRepository.deleteById(id);
+    }
+
+    public Product getProductByName(String name) {
+        return productRepository.findByName(name).orElse(null); // Assuming you have a method in ProductRepository
     }
 }

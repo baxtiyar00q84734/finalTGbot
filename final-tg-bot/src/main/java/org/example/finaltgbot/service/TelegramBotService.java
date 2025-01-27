@@ -1,18 +1,25 @@
 package org.example.finaltgbot.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.finaltgbot.config.MessageProvider;
 import org.example.finaltgbot.config.TelegramConfig;
+import org.example.finaltgbot.dto.response.ProductResponseDTO;
+import org.example.finaltgbot.dto.telegram.KeyboardButtonDTO;
+import org.example.finaltgbot.dto.telegram.ReplyKeyboardMarkupDTO;
+import org.example.finaltgbot.dto.telegram.SendMessageDTO;
 import org.example.finaltgbot.dto.telegram.TelegramRoot;
 import org.example.finaltgbot.dto.telegram.send.TelegramSendDTO;
 import org.example.finaltgbot.entity.Order;
 import org.example.finaltgbot.entity.Product;
 import org.example.finaltgbot.entity.User;
+import org.example.finaltgbot.enums.Language;
 import org.example.finaltgbot.enums.OrderStatus;
 import org.example.finaltgbot.enums.OrderStep;
 import org.example.finaltgbot.enums.RegistrationStep;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -21,6 +28,7 @@ public class TelegramBotService {
 
     private final TelegramConfig telegramConfig;
     private final UserService userService;
+    private final MessageProvider messageProvider;
     private final OrderService orderService;
     private final ProductService productService;
 
@@ -48,51 +56,34 @@ public class TelegramBotService {
         TelegramSendDTO message = new TelegramSendDTO();
         message.setChatId(chatId);
         message.setText(text);
-        telegramConfig.sendMessage(chatId, text);
+        telegramConfig.sendSimpleMessage(chatId, text);
     }
-
-//    public void processMessage(int chatId, String message) {
-//        User user = userService.findByChatId(chatId);
-//
-//        if (user == null) {
-//            user = userService.startRegistration(chatId);
-//            sendMessage(chatId, "Welcome! Please register to place an order. What is your first name?");
-//        } else if (user.getRegistrationStep() != RegistrationStep.COMPLETED) {
-//            handleRegistrationSteps(chatId, message, user);
-//
-//        } else {
-//            if (message.equalsIgnoreCase("/order")) {
-//                user.setOrderStep(OrderStep.SELECT_PRODUCT);
-//                userService.save(user);
-//                sendMessage(chatId, "Please choose a product category");
-//            }else if (message.equalsIgnoreCase("/delete_order")) {
-//                handleDeleteOrderCommand(Integer.parseInt(message));
-//                boolean isDeleted = orderService.deleteOrderByUserId(user.getId());
-//                if (isDeleted) {
-//                    sendMessage(chatId, "Your active order has been successfully deleted.");
-//                } else {
-//                    sendMessage(chatId, "No active orders found to delete.");
-//                }
-//            } else if (user.getOrderStep() != OrderStep.COMPLETED) {
-//                handleOrder(chatId, message, user);
-//            }
-//        }
-//
-//    }
 
     public void processMessage(int chatId, String message) {
         User user = userService.findByChatId(chatId);
 
+
         if (user == null) {
-            user = userService.startRegistration(chatId);
+            System.out.println("User not found, starting registration...");
+            userService.startRegistration(chatId);
             sendMessage(chatId, "Welcome! Please register to place an order. What is your first name?");
-        } else if (user.getRegistrationStep() != RegistrationStep.COMPLETED) {
+            return;
+        }
+
+        if (user.getRegistrationStep() != RegistrationStep.COMPLETED) {
+            System.out.println("User registration is incomplete, handling registration steps...");
             handleRegistrationSteps(chatId, message, user);
         } else {
             if (message.equalsIgnoreCase("/order")) {
-                user.setOrderStep(OrderStep.SELECT_PRODUCT);
-                userService.save(user);
-                sendMessage(chatId, "Please choose a product category");
+                if (isUserEligibleForOrder(user)) {
+                    user.setOrderStep(OrderStep.SELECT_PRODUCT);
+                    userService.save(user);
+
+                    handleOrder(chatId, message, user);
+                } else {
+                    sendMessage(chatId, "You are not eligible to place an order at this moment.");
+                }
+
             } else if (message.equalsIgnoreCase("/delete_order")) {
                 handleDeleteOrderCommand(chatId);
             } else if (user.getOrderStep() != OrderStep.COMPLETED) {
@@ -100,6 +91,7 @@ public class TelegramBotService {
             }
         }
     }
+
 
     private void handleRegistrationSteps(int chatId, String message, User user) {
         switch (user.getRegistrationStep()) {
@@ -136,19 +128,21 @@ public class TelegramBotService {
     }
 
     private void handleOrder(int chatId, String message, User user) {
-        Order currentOrder = orderService.getCurrentOrderForUser(user); // Fetch or create an order tied to the user
+        Order currentOrder = orderService.getCurrentOrderForUser(user);
 
         switch (user.getOrderStep()) {
             case SELECT_PRODUCT:
-                Product selectedProduct = productService.getProductById(Long.parseLong(message)); // Assuming the message is product ID
+                SendMessageDTO response = getMakeChoiceMessage((long) chatId, user.getLanguage());
+                telegramConfig.sendStructuredMessage(response);
+
+                Product selectedProduct = productService.getProductByName(message);
                 currentOrder.setProduct(selectedProduct);
                 orderService.save(currentOrder);
+
 
                 user.setOrderStep(OrderStep.SET_QUANTITY);
                 userService.save(user);
 
-                sendMessage(chatId, "How many units would you like to order?");
-                break;
 
             case SET_QUANTITY:
                 try {
@@ -210,6 +204,59 @@ public class TelegramBotService {
         }
     }
 
+    private SendMessageDTO getMakeChoiceMessage(Long chatId, Language language) {
+
+
+        if (chatId == null || language == null) {
+            SendMessageDTO sendMessageDTO = new SendMessageDTO();
+            sendMessageDTO.setChatId(chatId != null ? chatId : -1);
+            sendMessageDTO.setText("Invalid chat ID or language.");
+            return sendMessageDTO;
+        }
+
+        List<ProductResponseDTO> productList = productService.getAllProducts();
+        if (productList.isEmpty()) {
+            SendMessageDTO sendMessageDTO = new SendMessageDTO();
+            sendMessageDTO.setChatId(chatId);
+            sendMessageDTO.setText("No products available.");
+            return sendMessageDTO;
+        }
+
+        int columnSize = 1;
+        int rowCount = productList.size() / columnSize + (productList.size() % columnSize == 0 ? 0 : 1);
+
+        KeyboardButtonDTO[][] buttons = new KeyboardButtonDTO[rowCount][];
+        for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+            int remainingItems = productList.size() - rowIndex * columnSize;
+            int columns = Math.min(columnSize, remainingItems);
+
+            buttons[rowIndex] = new KeyboardButtonDTO[columns];
+            for (int columnIndex = 0; columnIndex < columns; columnIndex++) {
+                ProductResponseDTO product = productList.get(rowIndex * columnSize + columnIndex);
+                buttons[rowIndex][columnIndex] = new KeyboardButtonDTO(product.getName()); // Use product names
+            }
+        }
+
+        ReplyKeyboardMarkupDTO replyKeyboardMarkupDTO = new ReplyKeyboardMarkupDTO();
+        replyKeyboardMarkupDTO.setKeyboardButtonArray(buttons);
+        replyKeyboardMarkupDTO.setOneTimeKeyboard(true);
+
+
+        SendMessageDTO sendMessageDTO = new SendMessageDTO();
+        sendMessageDTO.setChatId(chatId);
+        sendMessageDTO.setText(messageProvider.getMessage("question_make_choice", language));
+        sendMessageDTO.setReplyKeyboard(replyKeyboardMarkupDTO);
+
+        return sendMessageDTO;
+    }
+
+
+    private boolean isUserEligibleForOrder(User user) {
+        return user.getRegistrationStep() == RegistrationStep.COMPLETED
+                && user.isActive();
+    }
 
 
 }
+
+

@@ -3,7 +3,9 @@ package org.example.finaltgbot.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.example.finaltgbot.enums.Language;
 import org.example.finaltgbot.enums.OrderStep;
 import org.example.finaltgbot.enums.RegistrationStep;
 import org.example.finaltgbot.enums.Role;
@@ -44,4 +46,17 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     private OrderStep orderStep = OrderStep.INITIATE_ORDER;
+
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    @Getter
+    private boolean active;
+
+
+    private String language;
+
+    public Language getLanguage() {
+        return language != null ? Language.valueOf(language) : Language.EN;
+    }
+
+
 }

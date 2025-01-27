@@ -7,24 +7,27 @@ import org.example.finaltgbot.enums.RegistrationStep;
 import org.example.finaltgbot.repository.UserRepository;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class UserService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
 
     public User findByChatId(int chatId) {
-        return userRepository.findByChatId(chatId);
+        return userRepository.findByChatId(chatId).orElse(null);
     }
 
     public User startRegistration(int chatId) {
-        User user = new User();
-        user.setChatId(chatId);
-        user.setRegistrationStep(RegistrationStep.ASK_NAME);
-        return userRepository.save(user);
+        User newUser = new User();
+        newUser.setChatId(chatId);
+        newUser.setRegistrationStep(RegistrationStep.ASK_NAME);
+        newUser.setActive(true);
+        return userRepository.save(newUser);
     }
 
     public void save(User user) {
@@ -39,11 +42,41 @@ public class UserService {
     }
 
     public User getUserByChatId(int chatId) {
-        return userRepository.findByChatId(chatId);
+        return userRepository.findByChatId(chatId).orElse(null);
     }
 
     public User getUserById(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
+    }
+
+    public boolean isUserEligibleForOrder(Long chatId) {
+        User user = findByChatId(Math.toIntExact(chatId));
+        if (user != null && user.getRegistrationStep() == RegistrationStep.COMPLETED) {
+            return true;
+        }
+        return false;
+    }
+
+
+    public void activateUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
+        user.setActive(true);
+        userRepository.save(user);
+    }
+
+    public void deactivateUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
+        user.setActive(false);
+        userRepository.save(user);
+    }
+
+    public void activateUserByEmail(String email) {
+        User user = (User) userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email));
+        user.setActive(true);
+        userRepository.save(user);
     }
 }
