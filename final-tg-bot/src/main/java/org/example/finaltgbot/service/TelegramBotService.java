@@ -73,19 +73,19 @@ public class TelegramBotService {
             switch (message.toLowerCase()) {
                 case "/order":
                     if (isUserEligibleForOrder(user)) {
-                        user.setOrderStep(OrderStep.SELECT_PRODUCT);
-                        userService.save(user);
-                        handleOrder(chatId, message, user);
-                    } else {
-                        sendMessage(chatId, "You are not eligible to place an order at this moment.");
-                    }
-                    break;
+                    user.setOrderStep(OrderStep.SELECT_PRODUCT);
+                    userService.save(user);
+                    handleOrder(chatId, message, user);
+                } else {
+                    sendMessage(chatId, "You are not eligible to place an order at this moment.");
+                }
+                break;
 
                 case "/delete_order":
-                    handleDeleteOrderCommand(chatId);
+                    handleDeleteOrderCommand(chatId, user);
                     break;
 
-                case "/orders_list": // Handle the new command
+                case "/orders_list":
                     handleOrdersListCommand(chatId, user);
                     break;
 
@@ -97,7 +97,6 @@ public class TelegramBotService {
             }
         }
     }
-
 
     private void handleRegistrationSteps(Long chatId, String message, User user) {
         switch (user.getRegistrationStep()) {
@@ -134,80 +133,144 @@ public class TelegramBotService {
     }
 
     private void handleOrder(Long chatId, String message, User user) {
-        List<Order> currentOrders = orderService.getCurrentOrderForUser(user);
-        Order currentOrder = currentOrders.get(0);
+        // Check if the user is trying to start a new order
+        if (user.getOrderStep() == OrderStep.INITIATE_ORDER || user.getOrderStep() == OrderStep.COMPLETED) {
+            // Reset the order step to SELECT_PRODUCT to start a new order
+            user.setOrderStep(OrderStep.SELECT_PRODUCT);
+            userService.save(user);
+        }
 
-        switch (user.getOrderStep()) {
-            case SELECT_PRODUCT:
-                SendMessageDTO response = getMakeChoiceMessage(chatId, user.getLanguage());
-                telegramConfig.sendStructuredMessage(response);
+        List<Order> currentOrders = orderService.getCurrentOrderForUser (user);
 
+        // If the user is trying to add a new order, we don't need to check for existing orders
+        if (user.getOrderStep() == OrderStep.SELECT_PRODUCT) {
+            SendMessageDTO response = getMakeChoiceMessage(chatId, user.getLanguage());
+            telegramConfig.sendStructuredMessage(response);
+            user.setOrderStep(OrderStep.SET_QUANTITY);
+            userService.save(user);
+            return;
+        }
 
-                user.setOrderStep(OrderStep.SET_QUANTITY);
-                userService.save(user);
+        // Existing logic for handling order steps
+        if (!currentOrders.isEmpty()) {
+            Order currentOrder = currentOrders.get(0);
 
-                break;
-            case SET_QUANTITY:
+            switch (user.getOrderStep()) {
+                case SET_QUANTITY:
+                    Product selectedProduct = productService.getProductByName(message);
+                    if (selectedProduct == null) {
+                        sendMessage(chatId, "Invalid product selection. Please choose a product from the list.");
+                        return;
+                    }
 
-
-                Product selectedProduct = productService.getProductByName(message);
-                currentOrder.setProduct(selectedProduct);
-                orderService.save(currentOrder);
-
-
-                try {
-                    int quantity = Integer.parseInt(message);
-                    currentOrder.setQuantity(quantity);
+                    currentOrder.setProduct(selectedProduct);
                     orderService.save(currentOrder);
 
+                    sendMessage(chatId, "Please enter the quantity for " + selectedProduct.getName() + ":");
                     user.setOrderStep(OrderStep.CONFIRM_ORDER);
                     userService.save(user);
+                    break;
 
-                    sendMessage(chatId, "Confirm your order? Type 'yes' to confirm or 'no' to cancel.");
-                } catch (NumberFormatException e) {
-                    sendMessage(chatId, "Please enter a valid number for quantity.");
-                }
-                break;
-            case CONFIRM_ORDER:
-                if (message.equalsIgnoreCase("yes")) {
-                    currentOrder.setStatus(OrderStatus.PENDING);
-                    orderService.save(currentOrder);
+                case CONFIRM_ORDER:
+                    try {
+                        int quantity = Integer.parseInt(message);
+                        if (quantity <= 0) {
+                            sendMessage(chatId, "Please enter a valid quantity greater than 0.");
+                            return;
+                        }
 
-                    user.setOrderStep(OrderStep.COMPLETED);
+                        currentOrder.setQuantity(quantity);
+                        orderService.save(currentOrder);
+
+                        // Provide order summary before confirmation
+                        String summary = "Order Summary:\n" +
+                                "Product: " + currentOrder.getProduct().getName() + "\n" +
+                                "Quantity: " + quantity + "\n" +
+                                "Total Price: $" + currentOrder.calculateTotalPrice() + "\n" +
+                                "Type 'yes' to confirm or 'no' to cancel.";
+                        sendMessage(chatId, summary);
+
+                        user.setOrderStep(OrderStep.COMPLETED);
+                        userService.save(user);
+                    } catch (NumberFormatException e) {
+                        sendMessage(chatId, "Please enter a valid number for quantity.");
+                    }
+                    break;
+
+                case COMPLETED:
+                    if (message.equalsIgnoreCase("yes")) {
+                        currentOrder.setStatus(OrderStatus.PENDING);
+                        orderService.save(currentOrder);
+                        sendMessage(chatId, "Thank you! Your order has been placed.");
+                    } else if (message.equalsIgnoreCase("no")) {
+                        currentOrder.setStatus(OrderStatus.CANCELED);
+                        orderService.save(currentOrder);
+                        sendMessage(chatId, "Order canceled.");
+                    } else {
+                        sendMessage(chatId, "Please type 'yes' to confirm or 'no' to cancel.");
+                    }
+                    break;
+
+                default:
+                    sendMessage(chatId, "Something went wrong. Please type /order to start again.");
+                    user.setOrderStep(OrderStep.INITIATE_ORDER);
                     userService.save(user);
-
-                    sendMessage(chatId, "Thank you! Your order has been placed.");
-                } else if (message.equalsIgnoreCase("no")) {
-                    currentOrder.setStatus(OrderStatus.CANCELED);
-                    orderService.save(currentOrder);
-
-                    user.setOrderStep(OrderStep.COMPLETED);
-                    userService.save(user);
-
-                    sendMessage(chatId, "Order canceled.");
-                } else {
-                    sendMessage(chatId, "Please type 'yes' to confirm or 'no' to cancel.");
-                }
-                break;
-
-            default:
-                sendMessage(chatId, "Something went wrong. Please type /order to start again.");
-                user.setOrderStep(OrderStep.INITIATE_ORDER);
-                userService.save(user);
-                break;
+                    break;
+            }
         }
+
+        if (user.getOrderStep() == OrderStep.DELETE_ORDER) {
+            handleOrderDeletion(chatId, message, user);
+            user.setOrderStep(OrderStep.COMPLETED);
+            userService.save(user);
+            return;
+        }
+
     }
 
-    public void handleDeleteOrderCommand(Long chatId) {
-        User user = userService.getUserByChatId(chatId);
 
-        List<Order> optionalOrder = orderService.getCurrentOrderForUser(user);
 
-            Order order = optionalOrder.get(0);
-            Long id = order.getId();
-            orderService.delete(id);
-            sendMessage(chatId, "Your pending order has been deleted successfully.");
 
+    public void handleDeleteOrderCommand(Long chatId, User user) {
+        List<Order> activeOrders = orderService.getActiveOrdersByUser (user);
+
+        if (activeOrders.isEmpty()) {
+            sendMessage(chatId, "You have no active orders to delete.");
+            return;
+        }
+
+        StringBuilder messageBuilder = new StringBuilder("Here are your active orders:\n");
+        for (int i = 0; i < activeOrders.size(); i++) {
+            Order order = activeOrders.get(i);
+            Product product = order.getProduct();
+            messageBuilder.append(i + 1).append(". ")
+                    .append(product != null ? product.getName() : "Unknown")
+                    .append(" (Quantity: ").append(order.getQuantity())
+                    .append(", Total Price: $").append(order.calculateTotalPrice())
+                    .append(")\n");
+        }
+        messageBuilder.append("Please enter the number of the order you want to delete:");
+
+        sendMessage(chatId, messageBuilder.toString());
+        user.setOrderStep(OrderStep.DELETE_ORDER); // Set the order step to DELETE_ORDER
+        userService.save(user);
+    }
+
+    private void handleOrderDeletion(Long chatId, String message, User user) {
+        List<Order> activeOrders = orderService.getActiveOrdersByUser (user);
+        try {
+            int orderIndex = Integer.parseInt(message) - 1; // Convert user input to index
+            if (orderIndex < 0 || orderIndex >= activeOrders.size()) {
+                sendMessage(chatId, "Invalid selection. Please enter a valid order number.");
+                return;
+            }
+
+            Order orderToDelete = activeOrders.get(orderIndex);
+            orderService.delete(orderToDelete.getId());
+            sendMessage(chatId, "Your order for " + orderToDelete.getProduct().getName() + " has been deleted successfully.");
+        } catch (NumberFormatException e) {
+            sendMessage(chatId, "Please enter a valid number.");
+        }
     }
 
     private SendMessageDTO getMakeChoiceMessage(Long chatId, Language language) {

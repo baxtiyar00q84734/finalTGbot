@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,12 +22,6 @@ public class OrderService {
 
     public List<Order> getCurrentOrderForUser(User user) {
         return orderRepository.findByUserAndStatus(user, OrderStatus.PENDING);
-//                .orElseGet(() -> {
-//                    Order newOrder = new Order();
-//                    newOrder.setUser(user);
-//                    newOrder.setStatus(OrderStatus.PENDING);
-//                    return orderRepository.save(newOrder);
-//                });
     }
 
     public double calculateOrderPrice(Order order) {
@@ -36,7 +29,11 @@ public class OrderService {
     }
 
     public void delete(Long id) {
-        orderRepository.deleteById(id);
+        if (orderRepository.existsById(id)) {
+            orderRepository.deleteById(id);
+        } else {
+            throw new IllegalArgumentException("Order not found with ID: " + id);
+        }
     }
 
     @Transactional
@@ -45,11 +42,11 @@ public class OrderService {
     }
 
     public boolean deleteOrderByUserId(Long userId) {
-//        return orderRepository.findByUserAndStatus(userService.getUserById(userId), OrderStatus.ACTIVE);
-//        if (order.isPresent()) {
-//            orderRepository.delete(order.get());
-//            return true;
-//        }
+        List<Order> orders = orderRepository.findByUserAndStatusNot(userService.getUserById(userId), OrderStatus.COMPLETED);
+        if (!orders.isEmpty()) {
+            orderRepository.deleteAll(orders);
+            return true;
+        }
         return false;
     }
 
@@ -63,6 +60,4 @@ public class OrderService {
     public List<Order> getActiveOrdersByUser(User user) {
         return orderRepository.findByUserAndStatusNot(user, OrderStatus.COMPLETED);
     }
-
-
 }

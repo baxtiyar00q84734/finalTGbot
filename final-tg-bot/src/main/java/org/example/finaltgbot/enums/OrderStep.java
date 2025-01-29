@@ -6,7 +6,7 @@ public enum OrderStep {
     PRODUCT_READY,
     SET_QUANTITY,
     CONFIRM_ORDER,
-    COMPLETED
+    DELETE_ORDER, COMPLETED
 }
 
 
