@@ -20,7 +20,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +46,7 @@ public class TelegramBotService {
 
                 processMessage(chatId, messageText);
 
-                offset =(update.getUpdate_id() + 1);
+                offset = (update.getUpdate_id() + 1);
             });
         }
     }
@@ -62,32 +61,39 @@ public class TelegramBotService {
     public void processMessage(Long chatId, String message) {
         User user = userService.findByChatId(chatId);
 
-
         if (user == null) {
-            System.out.println("User not found, starting registration...");
             userService.startRegistration(chatId);
             sendMessage(chatId, "Welcome! Please register to place an order. What is your first name?");
             return;
         }
 
         if (user.getRegistrationStep() != RegistrationStep.COMPLETED) {
-            System.out.println("User registration is incomplete, handling registration steps...");
             handleRegistrationSteps(chatId, message, user);
         } else {
-            if (message.equalsIgnoreCase("/order")) {
-                if (isUserEligibleForOrder(user)) {
-                    user.setOrderStep(OrderStep.SELECT_PRODUCT);
-                    userService.save(user);
+            switch (message.toLowerCase()) {
+                case "/order":
+                    if (isUserEligibleForOrder(user)) {
+                        user.setOrderStep(OrderStep.SELECT_PRODUCT);
+                        userService.save(user);
+                        handleOrder(chatId, message, user);
+                    } else {
+                        sendMessage(chatId, "You are not eligible to place an order at this moment.");
+                    }
+                    break;
 
-                    handleOrder(chatId, message, user);
-                } else {
-                    sendMessage(chatId, "You are not eligible to place an order at this moment.");
-                }
+                case "/delete_order":
+                    handleDeleteOrderCommand(chatId);
+                    break;
 
-            } else if (message.equalsIgnoreCase("/delete_order")) {
-                handleDeleteOrderCommand(chatId);
-            } else if (user.getOrderStep() != OrderStep.COMPLETED) {
-                handleOrder(chatId, message, user);
+                case "/orders_list": // Handle the new command
+                    handleOrdersListCommand(chatId, user);
+                    break;
+
+                default:
+                    if (user.getOrderStep() != OrderStep.COMPLETED) {
+                        handleOrder(chatId, message, user);
+                    }
+                    break;
             }
         }
     }
@@ -128,23 +134,27 @@ public class TelegramBotService {
     }
 
     private void handleOrder(Long chatId, String message, User user) {
-        Order currentOrder = orderService.getCurrentOrderForUser(user);
+        List<Order> currentOrders = orderService.getCurrentOrderForUser(user);
+        Order currentOrder = currentOrders.get(0);
 
         switch (user.getOrderStep()) {
             case SELECT_PRODUCT:
-                SendMessageDTO response = getMakeChoiceMessage((long) chatId, user.getLanguage());
+                SendMessageDTO response = getMakeChoiceMessage(chatId, user.getLanguage());
                 telegramConfig.sendStructuredMessage(response);
+
+
+                user.setOrderStep(OrderStep.SET_QUANTITY);
+                userService.save(user);
+
+                break;
+            case SET_QUANTITY:
+
 
                 Product selectedProduct = productService.getProductByName(message);
                 currentOrder.setProduct(selectedProduct);
                 orderService.save(currentOrder);
 
 
-                user.setOrderStep(OrderStep.SET_QUANTITY);
-                userService.save(user);
-
-
-            case SET_QUANTITY:
                 try {
                     int quantity = Integer.parseInt(message);
                     currentOrder.setQuantity(quantity);
@@ -158,7 +168,6 @@ public class TelegramBotService {
                     sendMessage(chatId, "Please enter a valid number for quantity.");
                 }
                 break;
-
             case CONFIRM_ORDER:
                 if (message.equalsIgnoreCase("yes")) {
                     currentOrder.setStatus(OrderStatus.PENDING);
@@ -192,16 +201,13 @@ public class TelegramBotService {
     public void handleDeleteOrderCommand(Long chatId) {
         User user = userService.getUserByChatId(chatId);
 
-        Optional<Order> optionalOrder = orderService.getCurrentOrderForUsers(user);
+        List<Order> optionalOrder = orderService.getCurrentOrderForUser(user);
 
-        if (optionalOrder.isPresent()) {
-            Order order = optionalOrder.get();
+            Order order = optionalOrder.get(0);
             Long id = order.getId();
             orderService.delete(id);
             sendMessage(chatId, "Your pending order has been deleted successfully.");
-        } else {
-            sendMessage(chatId, "You don't have any pending orders to delete.");
-        }
+
     }
 
     private SendMessageDTO getMakeChoiceMessage(Long chatId, Language language) {
@@ -254,6 +260,40 @@ public class TelegramBotService {
     private boolean isUserEligibleForOrder(User user) {
         return user.getRegistrationStep() == RegistrationStep.COMPLETED
                 && user.isActive();
+    }
+
+    public void handleOrderCalculation(Long chatId, Order order) {
+        try {
+            double totalPrice = order.calculateTotalPrice();
+            sendMessage(chatId, "The total price for your order is: $" + totalPrice);
+        } catch (IllegalStateException e) {
+            sendMessage(chatId, "Unable to calculate the total price: " + e.getMessage());
+        }
+    }
+
+    private void handleOrdersListCommand(Long chatId, User user) {
+        List<Order> activeOrders = orderService.getActiveOrdersByUser(user);
+
+        if (activeOrders.isEmpty()) {
+            sendMessage(chatId, "You have no active orders.");
+            return;
+        }
+
+        StringBuilder messageBuilder = new StringBuilder("Here are your active orders:\n");
+
+        for (Order order : activeOrders) {
+            Product product = order.getProduct();
+            int quantity = order.getQuantity();
+            double totalPrice = product != null ? product.getPrice() * quantity : 0;
+
+            messageBuilder.append("- Product: ")
+                    .append(product != null ? product.getName() : "Unknown")
+                    .append("\n  Quantity: ").append(quantity)
+                    .append("\n  Total Price: $").append(totalPrice)
+                    .append("\n\n");
+        }
+
+        sendMessage(chatId, messageBuilder.toString());
     }
 
 

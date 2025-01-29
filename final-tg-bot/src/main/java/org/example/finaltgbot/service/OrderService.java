@@ -8,6 +8,7 @@ import org.example.finaltgbot.enums.OrderStatus;
 import org.example.finaltgbot.repository.OrderRepository;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,34 +21,35 @@ public class OrderService {
     private final ModelMapper modelMapper;
     private final UserService userService;
 
-    public Order getCurrentOrderForUser(User user) {
-        return orderRepository.findByUserAndStatus(user, OrderStatus.PENDING)
-                .orElseGet(() -> {
-                    Order newOrder = new Order();
-                    newOrder.setUser(user);
-                    newOrder.setStatus(OrderStatus.PENDING);
-                    return orderRepository.save(newOrder);
-                });
+    public List<Order> getCurrentOrderForUser(User user) {
+        return orderRepository.findByUserAndStatus(user, OrderStatus.PENDING);
+//                .orElseGet(() -> {
+//                    Order newOrder = new Order();
+//                    newOrder.setUser(user);
+//                    newOrder.setStatus(OrderStatus.PENDING);
+//                    return orderRepository.save(newOrder);
+//                });
     }
 
-    public void save(Order order) {
-        orderRepository.save(order);
+    public double calculateOrderPrice(Order order) {
+        return order.calculateTotalPrice();
     }
 
     public void delete(Long id) {
         orderRepository.deleteById(id);
     }
 
-    public Optional<Order> getCurrentOrderForUsers(User user) {
-        return orderRepository.findByUserAndStatus(user, OrderStatus.PENDING);
+    @Transactional
+    public Order save(Order order) {
+        return orderRepository.save(order);
     }
 
     public boolean deleteOrderByUserId(Long userId) {
-        Optional<Order> order = orderRepository.findByUserAndStatus(userService.getUserById(userId), OrderStatus.ACTIVE);
-        if (order.isPresent()) {
-            orderRepository.delete(order.get());
-            return true;
-        }
+//        return orderRepository.findByUserAndStatus(userService.getUserById(userId), OrderStatus.ACTIVE);
+//        if (order.isPresent()) {
+//            orderRepository.delete(order.get());
+//            return true;
+//        }
         return false;
     }
 
@@ -57,5 +59,10 @@ public class OrderService {
                 .map(order -> modelMapper.map(order, OrderResponseDTO.class))
                 .toList();
     }
+
+    public List<Order> getActiveOrdersByUser(User user) {
+        return orderRepository.findByUserAndStatusNot(user, OrderStatus.COMPLETED);
+    }
+
 
 }

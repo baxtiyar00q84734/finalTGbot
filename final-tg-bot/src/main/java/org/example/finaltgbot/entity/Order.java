@@ -40,4 +40,12 @@ public class Order {
 
     @Column(name = "order_date")
     private LocalDateTime orderDate;
+
+
+    public double calculateTotalPrice() {
+        if (product == null) {
+            throw new IllegalStateException("Product cannot be null for calculating the total price.");
+        }
+        return product.getPrice() * quantity;
+    }
 }
