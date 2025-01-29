@@ -37,8 +37,8 @@ public class OrderService {
     }
 
     @Transactional
-    public Order save(Order order) {
-        return orderRepository.save(order);
+    public void save(Order order) {
+        orderRepository.save(order);
     }
 
     public boolean deleteOrderByUserId(Long userId) {
