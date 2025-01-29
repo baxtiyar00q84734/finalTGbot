@@ -1,6 +1,7 @@
 package org.example.finaltgbot.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.finaltgbot.dto.request.UserRequestDTO;
 import org.example.finaltgbot.dto.response.UserResponseDTO;
 import org.example.finaltgbot.entity.User;
 import org.example.finaltgbot.enums.RegistrationStep;
@@ -17,6 +18,25 @@ import java.util.List;
 public class UserService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
+
+
+    public UserResponseDTO createUser(UserRequestDTO userRequestDTO) {
+        User user = modelMapper.map(userRequestDTO, User.class);
+        User savedUser = userRepository.save(user);
+        return modelMapper.map(savedUser, UserResponseDTO.class);
+    }
+
+    public UserResponseDTO updateUser(Long id, UserRequestDTO userRequestDTO) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User  not found with ID: " + id));
+        modelMapper.map(userRequestDTO, user);
+        User updatedUser = userRepository.save(user);
+        return modelMapper.map(updatedUser, UserResponseDTO.class);
+    }
+
+    public void deleteUser(Long id) {
+        userRepository.deleteById(id);
+    }
 
     public User findByChatId(Long chatId) {
         return userRepository.findByChatId(chatId).orElse(null);
