@@ -30,4 +30,22 @@ public class CompanyService {
                 .map(company -> modelMapper.map(company, CompanyResponseDTO.class))
                 .collect(Collectors.toList());
     }
+
+    public CompanyResponseDTO getCompanyById(Long id) {
+        Company company = companyRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found with ID: " + id));
+        return modelMapper.map(company, CompanyResponseDTO.class);
+    }
+
+    public CompanyResponseDTO updateCompany(Long id, CompanyRequestDTO companyRequestDTO) {
+        Company company = companyRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found with ID: " + id));
+        modelMapper.map(companyRequestDTO, company);
+        Company updatedCompany = companyRepository.save(company);
+        return modelMapper.map(updatedCompany, CompanyResponseDTO.class);
+    }
+
+    public void deleteCompany(Long id) {
+        companyRepository.deleteById(id);
+    }
 }
