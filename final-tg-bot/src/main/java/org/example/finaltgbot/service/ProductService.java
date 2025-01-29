@@ -14,52 +14,37 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProductService {
-    private static final int MAX_DEPTH = 10;
     private final ProductRepository productRepository;
     private final ModelMapper modelMapper;
-    private int currentDepth = 0;
 
-    //CRUD
-
-    public List<Product> getAllAvailableProducts() {
-        return productRepository.findAll();
-    }
-
-    public Product getProductById(Long productId) {
-        return productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
-    }
-
-
-
-    public void createProduct(ProductRequestDTO productRequestDTO) {
-        Product map = modelMapper.map(productRequestDTO, Product.class);
-        productRepository.save(map);
+    public ProductResponseDTO createProduct(ProductRequestDTO productRequestDTO) {
+        Product product = modelMapper.map(productRequestDTO, Product.class);
+        Product savedProduct = productRepository.save(product);
+        return modelMapper.map(savedProduct, ProductResponseDTO.class);
     }
 
     public List<ProductResponseDTO> getAllProducts() {
-        if (currentDepth > MAX_DEPTH) {
-            throw new IllegalStateException("Exceeded maximum depth for recursion.");
-        }
-
-        try {
-            currentDepth++;
-            List<Product> products = productRepository.findAll();
-
-            return products.stream()
-                    .map(product -> modelMapper.map(product, ProductResponseDTO.class))
-                    .collect(Collectors.toList());
-        } finally {
-            currentDepth--;
-        }
+        return productRepository.findAll()
+                .stream()
+                .map(product -> modelMapper.map(product, ProductResponseDTO.class))
+                .collect(Collectors.toList());
     }
 
+    public ProductResponseDTO getProductById(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + id));
+        return modelMapper.map(product, ProductResponseDTO.class);
+    }
+
+    public ProductResponseDTO updateProduct(Long id, ProductRequestDTO productRequestDTO) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + id));
+        modelMapper.map(productRequestDTO, product);
+        Product updatedProduct = productRepository.save(product);
+        return modelMapper.map(updatedProduct, ProductResponseDTO.class);
+    }
 
     public void deleteProduct(Long id) {
         productRepository.deleteById(id);
-    }
-
-    public Product getProductByName(String name) {
-        return productRepository.findByName(name).orElse(null); // Assuming you have a method in ProductRepository
     }
 }
