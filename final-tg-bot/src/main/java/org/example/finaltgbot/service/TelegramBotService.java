@@ -41,12 +41,16 @@ public class TelegramBotService {
 
         if (!updates.getResult().isEmpty()) {
             updates.getResult().forEach(update -> {
-                Long chatId = update.getMessage().getChat().getId();
-                String messageText = update.getMessage().getText();
+                if (update.getMessage() != null) {  // Null check to avoid NullPointerException
+                    Long chatId = update.getMessage().getChat().getId();
+                    String messageText = update.getMessage().getText();
 
-                processMessage(chatId, messageText);
+                    processMessage(chatId, messageText);
 
-                offset = (update.getUpdate_id() + 1);
+                    offset = (update.getUpdate_id() + 1);
+                } else {
+                    System.out.println("Skipping update with null message: " + update.getUpdate_id());
+                }
             });
         }
     }
@@ -94,7 +98,7 @@ public class TelegramBotService {
                         handleOrder(chatId, message, user);
                     }
                     break;
-            }
+         }
         }
     }
 
@@ -260,7 +264,7 @@ public class TelegramBotService {
 
         sendMessage(chatId, messageBuilder.toString());
         user.setOrderStep(OrderStep.DELETE_ORDER);
-        userService.save(user);
+//        userService.save(user);
     }
 
     private void handleOrderDeletion(Long chatId, String message, User user) {
